@@ -1,0 +1,32 @@
+{
+  "name": "mnemo",
+  "version": "0.1.0",
+  "description": "Memory management MCP server for AI coding assistants",
+  "type": "module",
+  "main": "./build/index.js",
+  "bin": {
+    "mnemo": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node build/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "memory",
+    "agent"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "vectra": "^0.12.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.3"
+  }
+}
