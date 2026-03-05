@@ -1,5 +1,7 @@
 # Mnemo
 
+[中文文档](./docs/README.zh-CN.md)
+
 Persistent memory management for AI coding assistants via [MCP](https://modelcontextprotocol.io/).
 
 Mnemo solves the problem of context window overflow — important decisions, user preferences, and project knowledge get lost when conversations reset. Mnemo distills key information into persistent memory notes that can be recalled across sessions using semantic search.
