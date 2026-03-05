@@ -16,6 +16,7 @@
     "prettier:staged": "prettier --write",
     "test": "vitest run",
     "test:watch": "vitest",
+    "release": "bash scripts/release.sh",
     "prepare": "husky"
   },
   "keywords": [
