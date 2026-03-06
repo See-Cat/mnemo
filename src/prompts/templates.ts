@@ -1,10 +1,9 @@
 import { type AgentType } from '../core/config.js';
 
 /**
- * The memory management prompt to inject into agent configuration files.
- * This instructs the LLM when and how to use Mnemo's memory tools.
+ * Base memory management prompt — shared by all agents.
  */
-const MEMORY_PROMPT = `
+const BASE_MEMORY_PROMPT = `
 ## Mnemo - Memory Management
 
 You have access to a persistent memory system (Mnemo). Use it to retain important information across conversations.
@@ -12,9 +11,7 @@ You have access to a persistent memory system (Mnemo). Use it to retain importan
 ### When to save memory (memory_save):
 - Key decisions or conclusions reached during discussion
 - User preferences, habits, or requirements discovered
-- Technical architecture or design choices
 - Important context that would be useful in future conversations
-- Task outcomes and lessons learned
 - When context window is nearly full, save key information from the current conversation to preserve continuity
 
 ### When to search memory (memory_search):
@@ -42,6 +39,19 @@ You have access to a persistent memory system (Mnemo). Use it to retain importan
 - Do not save trivial or temporary information
 - When searching, use semantic queries that describe the information you need
 `.trim();
+
+/**
+ * Agent-specific memory prompt overrides.
+ * Appended after the base prompt for agents that need additional instructions.
+ */
+const AGENT_MEMORY_PROMPTS: Partial<Record<AgentType, string>> = {
+    openclaw: `
+
+### OpenClaw Integration:
+- After each memory_save, also append the same content to your daily memory file (memory/YYYY-MM-DD.md) to keep OpenClaw's built-in memory in sync
+- When you write to daily memory (memory/YYYY-MM-DD.md) or update MEMORY.md, also call memory_save to ensure cross-agent persistence
+- During heartbeat memory maintenance (reviewing daily files → updating MEMORY.md), also call memory_compress to consolidate Mnemo memories`,
+};
 
 /**
  * Agent-specific configuration file paths
@@ -83,10 +93,19 @@ const MARKER_START = '<!-- mnemo:start -->';
 const MARKER_END = '<!-- mnemo:end -->';
 
 /**
+ * Build the full memory prompt for a given agent type.
+ * Falls back to base-only when no agent-specific override exists.
+ */
+function buildMemoryPrompt(agentType?: AgentType): string {
+    const agentPrompt = agentType ? (AGENT_MEMORY_PROMPTS[agentType] ?? '') : '';
+    return BASE_MEMORY_PROMPT + agentPrompt;
+}
+
+/**
  * Get the prompt block wrapped with markers
  */
-export function getPromptBlock(): string {
-    return `${MARKER_START}\n${MEMORY_PROMPT}\n${MARKER_END}`;
+export function getPromptBlock(agentType?: AgentType): string {
+    return `${MARKER_START}\n${buildMemoryPrompt(agentType)}\n${MARKER_END}`;
 }
 
 /**
@@ -99,8 +118,8 @@ export function hasPromptInjected(content: string): boolean {
 /**
  * Inject or replace Mnemo prompt in content
  */
-export function injectPrompt(existingContent: string): string {
-    const block = getPromptBlock();
+export function injectPrompt(existingContent: string, agentType?: AgentType): string {
+    const block = getPromptBlock(agentType);
 
     if (hasPromptInjected(existingContent)) {
         // Replace existing block

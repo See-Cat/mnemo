@@ -106,7 +106,7 @@ export function registerSetupTool(server: McpServer): void {
             // Check if already installed
             if (hasPromptInjected(existingContent)) {
                 // Update in place
-                const updated = injectPrompt(existingContent);
+                const updated = injectPrompt(existingContent, agentType);
                 await fs.writeFile(targetPath, updated, 'utf-8');
                 return {
                     content: [
@@ -119,7 +119,7 @@ export function registerSetupTool(server: McpServer): void {
             }
 
             // Inject prompt
-            const updated = injectPrompt(existingContent);
+            const updated = injectPrompt(existingContent, agentType);
 
             // Ensure parent directory exists
             const dir = targetPath.substring(0, targetPath.lastIndexOf('/'));

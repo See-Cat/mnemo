@@ -16,6 +16,27 @@ describe('getPromptBlock', () => {
         expect(block).toContain('memory_compress');
         expect(block).toContain('context window is nearly full');
     });
+
+    it('无 agentType 时应只包含 base prompt', () => {
+        const block = getPromptBlock();
+        expect(block).not.toContain('OpenClaw Integration');
+    });
+
+    it('非 openclaw agent 应只包含 base prompt', () => {
+        const block = getPromptBlock('opencode');
+        expect(block).not.toContain('OpenClaw Integration');
+    });
+
+    it('openclaw 应包含 base + 适配层', () => {
+        const block = getPromptBlock('openclaw');
+        // base 内容
+        expect(block).toContain('memory_save');
+        expect(block).toContain('memory_search');
+        // 适配层内容
+        expect(block).toContain('OpenClaw Integration');
+        expect(block).toContain('daily memory file');
+        expect(block).toContain('memory_compress to consolidate');
+    });
 });
 
 describe('hasPromptInjected', () => {
@@ -63,6 +84,25 @@ describe('injectPrompt', () => {
 
         expect(second).toContain('# 原有配置');
         expect(second).toContain('其他内容');
+    });
+
+    it('openclaw 注入应包含适配层', () => {
+        const result = injectPrompt('# 配置', 'openclaw');
+        expect(result).toContain('OpenClaw Integration');
+        expect(result).toContain('daily memory file');
+    });
+
+    it('非 openclaw 注入不应包含适配层', () => {
+        const result = injectPrompt('# 配置', 'opencode');
+        expect(result).not.toContain('OpenClaw Integration');
+    });
+
+    it('替换时应保留 agentType 适配层', () => {
+        const first = injectPrompt('# 配置', 'openclaw');
+        const second = injectPrompt(first, 'openclaw');
+        expect(second).toContain('OpenClaw Integration');
+        const startCount = (second.match(/<!-- mnemo:start -->/g) || []).length;
+        expect(startCount).toBe(1);
     });
 });
 
