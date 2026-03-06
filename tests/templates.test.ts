@@ -15,6 +15,7 @@ describe('getPromptBlock', () => {
         expect(block).toContain('memory_get');
         expect(block).toContain('memory_compress');
         expect(block).toContain('context window is nearly full');
+        expect(block).toContain('context compaction or context window reset');
     });
 
     it('无 agentType 时应只包含 base prompt', () => {
