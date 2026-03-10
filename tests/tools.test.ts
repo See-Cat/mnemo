@@ -12,6 +12,7 @@ import { registerCompressTool } from '../src/tools/compress.js';
 import { registerSetupTool } from '../src/tools/setup.js';
 import { preloadEmbedding, embed } from '../src/core/embedding.js';
 import { extractSummary } from '../src/tools/search.js';
+import { writeStorageConfig } from '../src/core/config.js';
 
 let tmpDir: string;
 let client: Client;
@@ -20,6 +21,7 @@ let server: McpServer;
 beforeAll(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mnemo-tools-test-'));
     process.env.MNEMO_DATA_DIR = tmpDir;
+    await writeStorageConfig('global');
 
     // 预加载 embedding 模型
     preloadEmbedding();
@@ -410,17 +412,39 @@ describe('memory_compress_apply 工具', () => {
 
 describe('memory_setup 工具', () => {
     let cwdSpy: ReturnType<typeof vi.spyOn>;
+    let homeSpy: ReturnType<typeof vi.spyOn>;
+    let fakeHome: string;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         // mock process.cwd() 指向临时目录，避免在项目根目录产生 CLAUDE.md 副作用
         cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tmpDir);
+        fakeHome = path.join(tmpDir, 'fake-home');
+        await fs.mkdir(fakeHome, { recursive: true });
+        homeSpy = vi.spyOn(os, 'homedir').mockReturnValue(fakeHome);
     });
 
     afterAll(() => {
         cwdSpy.mockRestore();
+        homeSpy.mockRestore();
     });
 
-    it('指定 agent_type 应该成功写入配置文件', async () => {
+    it('默认应初始化为 global 存储', async () => {
+        const result = await client.callTool({
+            name: 'memory_setup',
+            arguments: {
+                agent_type: 'claude-code',
+            },
+        });
+
+        const text = getResponseText(result);
+        expect(text).toContain('Prompt scope: global');
+        expect(text).toContain('Storage scope: global');
+
+        const written = await fs.readFile(path.join(fakeHome, '.claude', 'CLAUDE.md'), 'utf-8');
+        expect(written).toContain('mnemo');
+    });
+
+    it('指定 project scope 应该写入项目配置和项目 marker', async () => {
         const result = await client.callTool({
             name: 'memory_setup',
             arguments: {
@@ -430,11 +454,16 @@ describe('memory_setup 工具', () => {
         });
 
         const text = getResponseText(result);
-        expect(text).toMatch(/initialized successfully|updated/);
+        expect(text).toMatch(/initialized successfully|updated successfully/);
+        expect(text).toContain('Prompt scope: project');
+        expect(text).toContain('Storage scope: project');
 
         // 验证文件写到了临时目录而非项目根目录
         const written = await fs.readFile(path.join(tmpDir, 'CLAUDE.md'), 'utf-8');
         expect(written).toContain('mnemo');
+
+        const marker = await fs.readFile(path.join(tmpDir, '.mnemo', 'config.json'), 'utf-8');
+        expect(marker).toContain('"scope": "project"');
     });
 
     it('重复调用应该更新而非报错', async () => {
@@ -448,6 +477,24 @@ describe('memory_setup 工具', () => {
 
         const text = getResponseText(result);
         expect(text).toContain('updated');
+    });
+
+    it('project_root 应优先于 cwd', async () => {
+        const explicitRoot = path.join(tmpDir, 'explicit-root');
+        await fs.mkdir(explicitRoot, { recursive: true });
+
+        const result = await client.callTool({
+            name: 'memory_setup',
+            arguments: {
+                agent_type: 'claude-code',
+                scope: 'project',
+                project_root: explicitRoot,
+            },
+        });
+
+        const text = getResponseText(result);
+        expect(text).toContain(`Prompt file: ${path.join(explicitRoot, 'CLAUDE.md')}`);
+        expect(text).toContain(`Storage path: ${path.join(explicitRoot, '.mnemo')}`);
     });
 });
 

@@ -10,12 +10,20 @@ describe('getPromptBlock', () => {
 
     it('应该包含核心指引内容', () => {
         const block = getPromptBlock();
+        expect(block).toContain('memory_setup');
         expect(block).toContain('memory_save');
         expect(block).toContain('memory_search');
         expect(block).toContain('memory_get');
         expect(block).toContain('memory_compress');
         expect(block).toContain('context window is nearly full');
         expect(block).toContain('context compaction or context window reset');
+    });
+
+    it('应该包含初始化兜底与默认 global 策略', () => {
+        const block = getPromptBlock();
+        expect(block).toContain('Mnemo has not been initialized yet');
+        expect(block).toContain('Default to global scope');
+        expect(block).toContain('Use project scope only when the user explicitly wants isolated per-project memory');
     });
 
     it('无 agentType 时应只包含 base prompt', () => {

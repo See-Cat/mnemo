@@ -1,9 +1,16 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { AGENT_TYPES, type AgentType } from '../core/config.js';
+import { AGENT_TYPES, type AgentType, writeStorageConfig } from '../core/config.js';
 import { getAgentConfig, injectPrompt, hasPromptInjected } from '../prompts/templates.js';
+
+const execFileAsync = promisify(execFile);
+
+const PROJECT_ROOT_MARKERS = ['.git', 'package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod'];
 
 /**
  * Detect which agent tool is being used by checking config file existence
@@ -45,6 +52,60 @@ async function detectAgentType(cwd: string): Promise<AgentType | null> {
     return null;
 }
 
+async function pathExists(targetPath: string): Promise<boolean> {
+    try {
+        await fs.access(targetPath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function detectGitRoot(cwd: string): Promise<string | null> {
+    try {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd });
+        return stdout.trim() || null;
+    } catch {
+        return null;
+    }
+}
+
+async function findProjectRootFromMarkers(startDir: string): Promise<string | null> {
+    let current = path.resolve(startDir);
+
+    while (true) {
+        for (const marker of PROJECT_ROOT_MARKERS) {
+            if (await pathExists(path.join(current, marker))) {
+                return current;
+            }
+        }
+
+        const parent = path.dirname(current);
+        if (parent === current) {
+            return null;
+        }
+        current = parent;
+    }
+}
+
+async function resolveProjectRoot(cwd: string, explicitProjectRoot?: string): Promise<string> {
+    if (explicitProjectRoot) {
+        return path.resolve(explicitProjectRoot);
+    }
+
+    const gitRoot = await detectGitRoot(cwd);
+    if (gitRoot) {
+        return gitRoot;
+    }
+
+    const markerRoot = await findProjectRootFromMarkers(cwd);
+    if (markerRoot) {
+        return markerRoot;
+    }
+
+    return path.resolve(cwd);
+}
+
 /**
  * Register the memory_setup tool
  */
@@ -64,13 +125,17 @@ export function registerSetupTool(server: McpServer): void {
                     ),
                 scope: z
                     .enum(['project', 'global'])
-                    .default('project')
+                    .default('global')
                     .describe(
-                        "Where to write the prompt: 'project' for current project, 'global' for user-level config",
+                        "Initialization scope. 'global' writes user-level config and uses shared global storage; 'project' writes project config and enables project-isolated storage.",
                     ),
+                project_root: z
+                    .string()
+                    .optional()
+                    .describe('Explicit project root path. Used only when scope is project; overrides auto-detection.'),
             },
         },
-        async ({ agent_type, scope }) => {
+        async ({ agent_type, scope, project_root }) => {
             const cwd = process.cwd();
             const home = os.homedir();
 
@@ -93,7 +158,11 @@ export function registerSetupTool(server: McpServer): void {
             }
 
             const config = getAgentConfig(agentType);
-            const targetPath = scope === 'global' ? config.globalPath(home) : config.projectPath(cwd);
+            const projectRoot = scope === 'project' ? await resolveProjectRoot(cwd, project_root) : null;
+            const targetPath = scope === 'global' ? config.globalPath(home) : config.projectPath(projectRoot!);
+            const storageConfigPath = await writeStorageConfig(scope, projectRoot || undefined);
+            const storagePath =
+                scope === 'global' ? path.dirname(storageConfigPath) : path.join(projectRoot!, '.mnemo');
 
             // Read existing content or start fresh
             let existingContent = '';
@@ -112,7 +181,7 @@ export function registerSetupTool(server: McpServer): void {
                     content: [
                         {
                             type: 'text' as const,
-                            text: `Mnemo memory instructions updated in ${targetPath}`,
+                            text: `Mnemo memory instructions updated successfully.\n\nAgent type: ${agentType}\nPrompt scope: ${scope}\nPrompt file: ${targetPath}\nStorage scope: ${scope}\nStorage path: ${storagePath}`,
                         },
                     ],
                 };
@@ -131,7 +200,7 @@ export function registerSetupTool(server: McpServer): void {
                 content: [
                     {
                         type: 'text' as const,
-                        text: `Mnemo memory management initialized successfully.\n\nAgent type: ${agentType}\nConfig file: ${targetPath}\n\nMnemo is now ready to use.`,
+                        text: `Mnemo memory management initialized successfully.\n\nAgent type: ${agentType}\nPrompt scope: ${scope}\nPrompt file: ${targetPath}\nStorage scope: ${scope}\nStorage path: ${storagePath}\n\nMnemo is now ready to use.`,
                     },
                 ],
             };

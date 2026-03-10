@@ -11,6 +11,7 @@ import {
     isEmbeddingReady,
     preloadEmbedding,
 } from '../src/core/embedding.js';
+import { writeStorageConfig } from '../src/core/config.js';
 import { saveNote, deleteNote } from '../src/core/notes.js';
 
 let tmpDir: string;
@@ -18,6 +19,7 @@ let tmpDir: string;
 beforeAll(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mnemo-emb-test-'));
     process.env.MNEMO_DATA_DIR = tmpDir;
+    await writeStorageConfig('global');
 
     // 预加载模型，等待就绪
     preloadEmbedding();

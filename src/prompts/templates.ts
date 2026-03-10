@@ -14,6 +14,12 @@ You have access to a persistent memory system (Mnemo). Use it to retain importan
 - Important context that would be useful in future conversations
 - When context window is nearly full, save key information from the current conversation to preserve continuity
 
+### When to initialize memory (memory_setup):
+- When Mnemo has not been initialized yet and a memory tool reports that setup is required
+- When the user asks to enable, configure, or set up Mnemo memory management
+- Default to global scope for shared cross-project memory
+- Use project scope only when the user explicitly wants isolated per-project memory
+
 ### When to search memory (memory_search):
 - At the START of each conversation, search for relevant context based on the user's first message
 - When the user references past discussions or decisions

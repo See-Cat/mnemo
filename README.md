@@ -101,13 +101,22 @@ mcporter config add mnemo --command mnemo --scope home
 
 ### Initialize
 
-Once connected, call the `memory_setup` tool to inject memory management instructions into your agent's config file:
+Once connected, call the `memory_setup` tool to inject memory management instructions into your agent's config file and initialize storage:
 
 ```
 > Use the memory_setup tool to initialize Mnemo
 ```
 
 This writes a prompt block into your agent's config (e.g., `AGENTS.md` for OpenCode, `CLAUDE.md` for Claude Code) that teaches the agent when and how to use Mnemo's tools.
+
+By default, `memory_setup()` initializes **global** memory shared across projects. If you want project-isolated memory, call `memory_setup` with `scope: "project"`.
+
+### Storage scopes
+
+- `global` (default) — shared memory across projects; prompt is written to the user-level agent config
+- `project` — isolated memory for the current project; prompt is written to the project config and Mnemo creates a local `.mnemo/` directory
+
+You can also pass `project_root` when using `scope: "project"` to explicitly choose the project root.
 
 ## Usage Examples
 
@@ -177,7 +186,7 @@ Mnemo provides 7 MCP tools:
 
 | Tool                    | Description                                                         |
 | ----------------------- | ------------------------------------------------------------------- |
-| `memory_setup`          | Initialize Mnemo — inject usage instructions into agent config      |
+| `memory_setup`          | Initialize Mnemo — inject usage instructions and set up storage     |
 | `memory_save`           | Save a memory note with optional tags and source                    |
 | `memory_search`         | Hybrid search across memories; returns summaries (supports filters) |
 | `memory_get`            | Retrieve full content of specific notes by ID                       |
@@ -189,19 +198,33 @@ Mnemo provides 7 MCP tools:
 
 ### Storage
 
-Memory notes are stored as Markdown files with YAML frontmatter:
+Memory notes are stored as Markdown files with YAML frontmatter.
+
+Global mode:
 
 ```
 ~/Library/Application Support/mnemo/    # macOS
 ~/.local/share/mnemo/                   # Linux
 %APPDATA%/mnemo/                        # Windows
+├── config.json                         # Global storage marker
 ├── notes/                              # Markdown files
 │   ├── 20260305-172200-a3f1.md
 │   └── 20260305-183015-b7c2.md
 └── index/                              # Vector index (vectra)
 ```
 
-Override the data directory with `MNEMO_DATA_DIR` environment variable.
+Project mode:
+
+```
+<projectRoot>/.mnemo/
+├── config.json                          # Project storage marker
+├── notes/                               # Markdown files
+└── index/                               # Vector index (vectra)
+```
+
+Override the global data directory with `MNEMO_DATA_DIR` environment variable.
+
+Important: Mnemo must be initialized with `memory_setup` before other memory tools are used. Storage resolution follows: project marker first, global marker second, otherwise the tool reports that Mnemo is not initialized.
 
 ### Hybrid Search
 

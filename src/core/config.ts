@@ -9,6 +9,22 @@ export const AGENT_TYPES = ['opencode', 'claude-code', 'openclaw', 'codex'] as c
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
+export type StorageScope = 'global' | 'project';
+
+export interface StorageContext {
+    scope: StorageScope;
+    dataDir: string;
+    notesDir: string;
+    indexDir: string;
+    configPath: string;
+}
+
+interface StorageConfigFile {
+    version: number;
+    scope: StorageScope;
+    createdAt: string;
+}
+
 /**
  * Get platform-appropriate data directory for Mnemo.
  *
@@ -38,6 +54,27 @@ export function getDataDir(): string {
 }
 
 /**
+ * Get the global storage config path
+ */
+export function getGlobalConfigPath(): string {
+    return path.join(getDataDir(), 'config.json');
+}
+
+/**
+ * Get the project storage root directory
+ */
+export function getProjectDataDir(projectRoot: string): string {
+    return path.join(projectRoot, '.mnemo');
+}
+
+/**
+ * Get the project storage config path
+ */
+export function getProjectConfigPath(projectRoot: string): string {
+    return path.join(getProjectDataDir(projectRoot), 'config.json');
+}
+
+/**
  * Get the notes directory
  */
 export function getNotesDir(): string {
@@ -49,6 +86,85 @@ export function getNotesDir(): string {
  */
 export function getIndexDir(): string {
     return path.join(getDataDir(), 'index');
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+    try {
+        await fs.access(targetPath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Write the storage initialization marker.
+ */
+export async function writeStorageConfig(scope: StorageScope, projectRoot?: string): Promise<string> {
+    const configPath = scope === 'project' ? getProjectConfigPath(projectRoot || process.cwd()) : getGlobalConfigPath();
+
+    const config: StorageConfigFile = {
+        version: 1,
+        scope,
+        createdAt: new Date().toISOString(),
+    };
+
+    await ensureDir(path.dirname(configPath));
+    await fs.writeFile(configPath, JSON.stringify(config, null, 4) + '\n', 'utf-8');
+
+    return configPath;
+}
+
+/**
+ * Find the nearest project storage config by walking up from cwd.
+ */
+export async function findProjectConfig(startDir: string): Promise<string | null> {
+    let current = path.resolve(startDir);
+
+    while (true) {
+        const configPath = getProjectConfigPath(current);
+        if (await pathExists(configPath)) {
+            return configPath;
+        }
+
+        const parent = path.dirname(current);
+        if (parent === current) {
+            return null;
+        }
+        current = parent;
+    }
+}
+
+/**
+ * Resolve the active storage context for the current working directory.
+ * Project storage has priority over global storage.
+ */
+export async function resolveStorageContext(cwd: string = process.cwd()): Promise<StorageContext> {
+    const projectConfigPath = await findProjectConfig(cwd);
+    if (projectConfigPath) {
+        const dataDir = path.dirname(projectConfigPath);
+        return {
+            scope: 'project',
+            dataDir,
+            notesDir: path.join(dataDir, 'notes'),
+            indexDir: path.join(dataDir, 'index'),
+            configPath: projectConfigPath,
+        };
+    }
+
+    const globalConfigPath = getGlobalConfigPath();
+    if (await pathExists(globalConfigPath)) {
+        const dataDir = getDataDir();
+        return {
+            scope: 'global',
+            dataDir,
+            notesDir: path.join(dataDir, 'notes'),
+            indexDir: path.join(dataDir, 'index'),
+            configPath: globalConfigPath,
+        };
+    }
+
+    throw new Error('Mnemo is not initialized in the current environment. Run memory_setup first.');
 }
 
 /**

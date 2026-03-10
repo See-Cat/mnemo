@@ -12,13 +12,14 @@ import {
     deleteNotes,
     getNoteStats,
 } from '../src/core/notes.js';
-import type { Note } from '../src/core/config.js';
+import { writeStorageConfig, type Note } from '../src/core/config.js';
 
 let tmpDir: string;
 
 beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mnemo-test-'));
     process.env.MNEMO_DATA_DIR = tmpDir;
+    await writeStorageConfig('global');
 });
 
 afterEach(async () => {

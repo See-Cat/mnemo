@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { getNotesDir, ensureDir, type Note, type NoteMeta } from './config.js';
+import { ensureDir, resolveStorageContext, type Note, type NoteMeta } from './config.js';
 
 /**
  * Generate a timestamp-based unique ID.
@@ -104,7 +104,7 @@ export function serializeNote(note: Note): string {
  * Save a new note to disk and return it
  */
 export async function saveNote(content: string, tags: string[] = [], source: string = 'unknown'): Promise<Note> {
-    const notesDir = getNotesDir();
+    const { notesDir } = await resolveStorageContext();
     await ensureDir(notesDir);
 
     const id = generateId();
@@ -131,7 +131,8 @@ export async function saveNote(content: string, tags: string[] = [], source: str
  * Read a single note by ID
  */
 export async function readNote(id: string): Promise<Note | null> {
-    const filePath = path.join(getNotesDir(), `${id}.md`);
+    const { notesDir } = await resolveStorageContext();
+    const filePath = path.join(notesDir, `${id}.md`);
     try {
         const raw = await fs.readFile(filePath, 'utf-8');
         return parseNote(raw);
@@ -144,7 +145,7 @@ export async function readNote(id: string): Promise<Note | null> {
  * Read all notes from disk
  */
 export async function readAllNotes(): Promise<Note[]> {
-    const notesDir = getNotesDir();
+    const { notesDir } = await resolveStorageContext();
     try {
         await ensureDir(notesDir);
         const files = await fs.readdir(notesDir);
@@ -170,7 +171,8 @@ export async function readAllNotes(): Promise<Note[]> {
  * Delete a note by ID
  */
 export async function deleteNote(id: string): Promise<boolean> {
-    const filePath = path.join(getNotesDir(), `${id}.md`);
+    const { notesDir } = await resolveStorageContext();
+    const filePath = path.join(notesDir, `${id}.md`);
     try {
         await fs.unlink(filePath);
         return true;

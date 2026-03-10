@@ -1,10 +1,10 @@
 import { LocalIndex } from 'vectra';
-import { getIndexDir, ensureDir, type Note } from './config.js';
+import { ensureDir, resolveStorageContext, type Note } from './config.js';
 import { readAllNotes } from './notes.js';
 
 let embedder: any = null;
 let embedderLoading: Promise<any> | null = null;
-let indexInstance: LocalIndex | null = null;
+const indexInstances = new Map<string, LocalIndex>();
 
 /**
  * Load the embedding model.
@@ -57,8 +57,10 @@ export async function embed(text: string): Promise<number[]> {
  * Get or create the vector index
  */
 async function getIndex(): Promise<LocalIndex> {
+    const { indexDir } = await resolveStorageContext();
+    let indexInstance = indexInstances.get(indexDir) || null;
+
     if (!indexInstance) {
-        const indexDir = getIndexDir();
         await ensureDir(indexDir);
 
         indexInstance = new LocalIndex(indexDir);
@@ -70,6 +72,8 @@ async function getIndex(): Promise<LocalIndex> {
             });
             console.error('Mnemo: vector index created');
         }
+
+        indexInstances.set(indexDir, indexInstance);
     }
     return indexInstance;
 }

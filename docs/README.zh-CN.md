@@ -99,13 +99,22 @@ mcporter config add mnemo --command mnemo --scope home
 
 ### 初始化
 
-连接后，调用 `memory_setup` 工具将记忆管理指令注入 Agent 配置文件：
+连接后，调用 `memory_setup` 工具将记忆管理指令注入 Agent 配置文件，并初始化存储：
 
 ```
 > 使用 memory_setup 工具初始化 Mnemo
 ```
 
 这会在 Agent 配置文件中写入一段提示（如 OpenCode 的 `AGENTS.md`、Claude Code 的 `CLAUDE.md`），告诉 Agent 何时以及如何使用 Mnemo 的工具。
+
+默认情况下，`memory_setup()` 会初始化为**全局记忆**，在多个项目之间共享。如果你需要项目隔离的记忆，请在调用 `memory_setup` 时传入 `scope: "project"`。
+
+### 存储作用域
+
+- `global`（默认）— 跨项目共享记忆；提示词写入用户级 Agent 配置
+- `project` — 当前项目独立记忆；提示词写入项目级配置，并在项目内创建 `.mnemo/` 目录
+
+当使用 `scope: "project"` 时，也可以额外传入 `project_root`，显式指定项目根目录。
 
 ## 使用示例
 
@@ -173,7 +182,7 @@ Mnemo 提供 7 个 MCP 工具：
 
 | 工具                    | 说明                                         |
 | ----------------------- | -------------------------------------------- |
-| `memory_setup`          | 初始化 Mnemo — 向 Agent 配置文件注入使用指令 |
+| `memory_setup`          | 初始化 Mnemo — 注入使用指令并建立存储作用域  |
 | `memory_save`           | 保存记忆笔记，可附带标签和来源               |
 | `memory_search`         | 混合搜索记忆，返回摘要（支持来源和标签过滤） |
 | `memory_get`            | 按 ID 获取笔记完整内容                       |
@@ -185,19 +194,33 @@ Mnemo 提供 7 个 MCP 工具：
 
 ### 存储
 
-记忆笔记以 Markdown 文件存储，包含 YAML frontmatter 元数据：
+记忆笔记以 Markdown 文件存储，包含 YAML frontmatter 元数据。
+
+全局模式：
 
 ```
 ~/Library/Application Support/mnemo/    # macOS
 ~/.local/share/mnemo/                   # Linux
 %APPDATA%/mnemo/                        # Windows
+├── config.json                         # 全局存储标记
 ├── notes/                              # Markdown 文件
 │   ├── 20260305-172200-a3f1.md
 │   └── 20260305-183015-b7c2.md
 └── index/                              # 向量索引（vectra）
 ```
 
-可通过 `MNEMO_DATA_DIR` 环境变量覆盖数据目录。
+项目模式：
+
+```
+<projectRoot>/.mnemo/
+├── config.json                          # 项目存储标记
+├── notes/                               # Markdown 文件
+└── index/                               # 向量索引（vectra）
+```
+
+可通过 `MNEMO_DATA_DIR` 环境变量覆盖全局数据目录。
+
+注意：使用其他记忆工具前，必须先运行 `memory_setup` 完成初始化。存储解析顺序是：先找项目级 marker，再找全局 marker；两者都不存在时，Mnemo 会提示当前环境尚未初始化。
 
 ### 混合搜索
 
