@@ -93,20 +93,36 @@ describe('reminders.ts — OpenCode plugin template', () => {
         expect(OPENCODE_PLUGIN_TS).toContain('export const MnemoReminder');
     });
 
-    it('应该处理 session.created 事件', () => {
-        expect(OPENCODE_PLUGIN_TS).toContain('session.created');
-    });
-
-    it('应该处理 session.idle 事件', () => {
-        expect(OPENCODE_PLUGIN_TS).toContain('session.idle');
+    it('应该使用 experimental.chat.messages.transform 进行隐形注入', () => {
+        expect(OPENCODE_PLUGIN_TS).toContain('experimental.chat.messages.transform');
     });
 
     it('应该处理 experimental.session.compacting 事件', () => {
         expect(OPENCODE_PLUGIN_TS).toContain('experimental.session.compacting');
     });
 
-    it('应该使用 noReply 注入上下文', () => {
-        expect(OPENCODE_PLUGIN_TS).toContain('noReply: true');
+    it('应该包含会话跟踪逻辑（seenSessions）', () => {
+        expect(OPENCODE_PLUGIN_TS).toContain('seenSessions');
+    });
+
+    it('不应该使用 client.session.prompt（旧的可见注入方式）', () => {
+        expect(OPENCODE_PLUGIN_TS).not.toContain('client.session.prompt');
+        expect(OPENCODE_PLUGIN_TS).not.toContain('noReply');
+    });
+
+    it('不应该监听 session.idle 事件（触发过于频繁）', () => {
+        expect(OPENCODE_PLUGIN_TS).not.toContain('session.idle');
+    });
+
+    it('应该区分新会话（sessionStart）和后续轮次（perTurn）', () => {
+        expect(OPENCODE_PLUGIN_TS).toContain('SESSION_START_REMINDER');
+        expect(OPENCODE_PLUGIN_TS).toContain('PER_TURN_REMINDER');
+        expect(OPENCODE_PLUGIN_TS).toContain('isNewSession');
+    });
+
+    it('不应该需要 client 参数（无需 SDK 调用）', () => {
+        expect(OPENCODE_PLUGIN_TS).toContain('async () =>');
+        expect(OPENCODE_PLUGIN_TS).not.toContain('{ client }');
     });
 });
 

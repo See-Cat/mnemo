@@ -113,60 +113,47 @@ export default handler;
 
 /**
  * OpenCode plugin for mnemo memory reminders.
- * Subscribes to session lifecycle events.
+ * Uses experimental.chat.messages.transform for invisible injection.
  */
 export const OPENCODE_PLUGIN_TS = `/**
  * Mnemo Memory Reminder Plugin for OpenCode
- * Injects memory management reminders at key session lifecycle points.
+ * Injects memory management reminders invisibly via message transform.
  */
 
-const SESSION_START_REMINDER = \`${REMINDERS.sessionStart}\`;
+const SESSION_START_REMINDER = \`${REMINDERS.sessionStart}
 
-const SESSION_END_REMINDER = \`${REMINDERS.sessionEnd}\`;
+${REMINDERS.perTurn}\`;
+
+const PER_TURN_REMINDER = \`${REMINDERS.perTurn}\`;
 
 const COMPACTION_REMINDER = \`${REMINDERS.compaction}\`;
 
-export const MnemoReminder = async ({ client }) => {
+// Track which sessions have already received the start reminder
+const seenSessions = new Set();
+
+export const MnemoReminder = async () => {
     return {
-        event: async ({ event }) => {
-            if (event.type === "session.created") {
-                // Remind to search memory at session start
-                try {
-                    const sessions = await client.session.list();
-                    const current = sessions.data?.[0];
-                    if (current?.id) {
-                        await client.session.prompt({
-                            path: { id: current.id },
-                            body: {
-                                noReply: true,
-                                parts: [{ type: "text", text: SESSION_START_REMINDER }],
-                            },
-                        });
-                    }
-                } catch {
-                    // Best effort — don't break the session
-                }
-            }
-            if (event.type === "session.idle") {
-                // Remind to self-check at session end
-                try {
-                    const sessions = await client.session.list();
-                    const current = sessions.data?.[0];
-                    if (current?.id) {
-                        await client.session.prompt({
-                            path: { id: current.id },
-                            body: {
-                                noReply: true,
-                                parts: [{ type: "text", text: SESSION_END_REMINDER }],
-                            },
-                        });
-                    }
-                } catch {
-                    // Best effort
+        "experimental.chat.messages.transform": async (_input, output) => {
+            const messages = output.messages;
+            if (!messages || messages.length === 0) return;
+
+            // Determine session ID from the first message
+            const sessionID = messages[0]?.info?.sessionID;
+            const isNewSession = sessionID && !seenSessions.has(sessionID);
+            if (sessionID) seenSessions.add(sessionID);
+
+            // Pick the appropriate reminder
+            const reminder = isNewSession ? SESSION_START_REMINDER : PER_TURN_REMINDER;
+
+            // Find the last user message and append the reminder to its parts
+            for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].info?.role === "user") {
+                    messages[i].parts.push({ type: "text", text: reminder });
+                    break;
                 }
             }
         },
-        "experimental.session.compacting": async (input, output) => {
+        "experimental.session.compacting": async (_input, output) => {
             output.context.push(COMPACTION_REMINDER);
         },
     };
