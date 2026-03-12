@@ -79,6 +79,43 @@ async function getIndex(): Promise<LocalIndex> {
 }
 
 /**
+ * Dedup detection threshold — cosine similarity above this is considered near-duplicate.
+ * MiniLM-L6-v2 cosine similarity: 0.85+ generally means semantically near-identical content.
+ */
+export const DEDUP_SIMILARITY_THRESHOLD = 0.85;
+
+export interface SimilarNote {
+    id: string;
+    score: number;
+    text: string;
+}
+
+/**
+ * Find notes similar to the given content.
+ * Returns matches above the threshold, sorted by descending similarity.
+ * Returns empty array if embedding model is not ready.
+ */
+export async function findSimilar(
+    content: string,
+    threshold: number = DEDUP_SIMILARITY_THRESHOLD,
+    topK: number = 3,
+): Promise<SimilarNote[]> {
+    if (!isEmbeddingReady()) return [];
+
+    const index = await getIndex();
+    const vector = await embed(content);
+    const results = await index.queryItems(vector, '', topK);
+
+    return results
+        .filter((r) => r.score >= threshold)
+        .map((r) => ({
+            id: r.item.metadata.id as string,
+            score: r.score,
+            text: r.item.metadata.text as string,
+        }));
+}
+
+/**
  * Index a note (generate embedding and store in vector index)
  */
 export async function indexNote(note: Note): Promise<void> {

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { saveNote, getNoteStats } from '../core/notes.js';
-import { indexNote, isEmbeddingReady } from '../core/embedding.js';
+import { indexNote, isEmbeddingReady, findSimilar } from '../core/embedding.js';
 import { COMPRESS_THRESHOLDS, MEMORY_TYPES } from '../core/config.js';
 
 /**
@@ -22,7 +22,6 @@ export function registerSaveTool(server: McpServer): void {
                     ),
                 type: z
                     .enum(MEMORY_TYPES)
-                    .optional()
                     .describe(
                         'Memory type classification. Helps organize and retrieve memories. Options: preference (user preferences/habits), profile (stable background info), goal (long-term directions), continuity (unresolved threads to resume), fact (stable objective info), decision (confirmed choices), rule (reusable conventions), experience (validated reusable lessons).',
                     ),
@@ -40,7 +39,24 @@ export function registerSaveTool(server: McpServer): void {
         },
         async ({ content, type, tags, source }) => {
             try {
-                // Save the note to disk first (fast, reliable)
+                // Dedup detection: check for similar existing notes before saving
+                let dedupWarning = '';
+                try {
+                    const similar = await findSimilar(content);
+                    if (similar.length > 0) {
+                        const summaries = similar
+                            .map(
+                                (s) =>
+                                    `  - ID: ${s.id} (similarity: ${(s.score * 100).toFixed(1)}%) — ${s.text.slice(0, 100)}...`,
+                            )
+                            .join('\n');
+                        dedupWarning = `\n\nWarning: Similar memories already exist:\n${summaries}\nConsider using memory_get to check if this is a duplicate, or memory_compress to consolidate.`;
+                    }
+                } catch {
+                    // Best effort — don't block save if dedup check fails
+                }
+
+                // Save the note to disk
                 const note = await saveNote(content, tags || [], source || 'unknown', type);
 
                 // Try to index for semantic search (may be slow on first call)
@@ -53,13 +69,6 @@ export function registerSaveTool(server: McpServer): void {
                     console.error('Mnemo: indexing failed for note', note.meta.id, reason);
                 }
 
-                // Soft hint if type was not specified
-                let typeHint = '';
-                if (!type) {
-                    typeHint =
-                        '\n\nHint: Consider specifying a memory type (preference, profile, goal, continuity, fact, decision, rule, experience) for better organization and retrieval.';
-                }
-
                 // Check if compression might be needed (program-level guardrail)
                 const stats = await getNoteStats();
                 let compressHint = '';
@@ -68,13 +77,13 @@ export function registerSaveTool(server: McpServer): void {
                     compressHint = `\n\nNote: Memory storage is growing large (${stats.count} notes, ${Math.round(stats.totalSize / 1000)}KB). Consider running memory_compress to consolidate and distill older memories.`;
                 }
 
-                const typeLine = note.meta.type ? `\nType: ${note.meta.type}` : '';
+                const typeLine = `\nType: ${note.meta.type}`;
 
                 return {
                     content: [
                         {
                             type: 'text' as const,
-                            text: `Memory saved successfully.\n\nID: ${note.meta.id}${typeLine}\nTags: [${note.meta.tags.join(', ')}]${indexWarning}${typeHint}${compressHint}`,
+                            text: `Memory saved successfully.\n\nID: ${note.meta.id}${typeLine}\nTags: [${note.meta.tags.join(', ')}]${dedupWarning}${indexWarning}${compressHint}`,
                         },
                     ],
                 };

@@ -86,6 +86,7 @@ describe('memory_save 工具', () => {
             name: 'memory_save',
             arguments: {
                 content: '工具测试：用户偏好 4 空格缩进',
+                type: 'preference',
                 tags: ['test', 'preference'],
                 source: 'opencode',
             },
@@ -98,16 +99,18 @@ describe('memory_save 工具', () => {
         expect(text).toContain('preference');
     });
 
-    it('无 tags 和 source 也应成功', async () => {
+    it('无 tags 和 source 也应成功（type 必填）', async () => {
         const result = await client.callTool({
             name: 'memory_save',
             arguments: {
                 content: '最简保存测试',
+                type: 'fact',
             },
         });
 
         const text = getResponseText(result);
         expect(text).toContain('Memory saved successfully');
+        expect(text).toContain('Type: fact');
     });
 
     it('指定 type 应保存并显示类型', async () => {
@@ -124,24 +127,51 @@ describe('memory_save 工具', () => {
         const text = getResponseText(result);
         expect(text).toContain('Memory saved successfully');
         expect(text).toContain('Type: decision');
-        // 不应包含 type hint
-        expect(text).not.toContain('Consider specifying a memory type');
     });
 
-    it('未指定 type 时应返回 soft hint', async () => {
+    it('保存近似重复内容时应返回去重警告', async () => {
+        // 先保存一条笔记
+        await client.callTool({
+            name: 'memory_save',
+            arguments: {
+                content: '项目使用 Prettier 进行代码格式化，配置 singleQuote 和 tabWidth 4',
+                type: 'rule',
+                tags: ['dedup-test'],
+                source: 'opencode',
+            },
+        });
+
+        // 保存语义近似的内容
         const result = await client.callTool({
             name: 'memory_save',
             arguments: {
-                content: '无类型的保存测试 notype_hint_test',
-                tags: ['test'],
+                content: '代码格式化使用 Prettier，配置为 singleQuote 和 tabWidth 4',
+                type: 'rule',
+                tags: ['dedup-test'],
                 source: 'opencode',
             },
         });
 
         const text = getResponseText(result);
         expect(text).toContain('Memory saved successfully');
-        expect(text).toContain('Consider specifying a memory type');
-        expect(text).not.toContain('Type:');
+        // 应该有去重警告
+        expect(text).toContain('Similar memories already exist');
+    });
+
+    it('保存完全不同的内容时不应触发去重警告', async () => {
+        const result = await client.callTool({
+            name: 'memory_save',
+            arguments: {
+                content: '完全独特的内容：量子计算在密码学中的应用前景 uniqueQuantumCrypto',
+                type: 'fact',
+                tags: ['unique-test'],
+                source: 'opencode',
+            },
+        });
+
+        const text = getResponseText(result);
+        expect(text).toContain('Memory saved successfully');
+        expect(text).not.toContain('Similar memories already exist');
     });
 });
 
@@ -152,6 +182,7 @@ describe('memory_search 工具', () => {
             name: 'memory_save',
             arguments: {
                 content: '项目使用 Vitest 作为测试框架，配合 TypeScript 使用',
+                type: 'fact',
                 tags: ['tooling'],
                 source: 'opencode',
             },
@@ -176,6 +207,7 @@ describe('memory_search 工具', () => {
             name: 'memory_save',
             arguments: {
                 content: '独特的 claude 测试笔记 xyzzy',
+                type: 'fact',
                 tags: ['filter-test'],
                 source: 'claude-code',
             },
@@ -201,6 +233,7 @@ describe('memory_search 工具', () => {
             name: 'memory_save',
             arguments: {
                 content: '架构决策：使用 vectra 做本地向量存储 qwerty',
+                type: 'decision',
                 tags: ['architecture', 'decision'],
                 source: 'opencode',
             },
@@ -301,6 +334,7 @@ describe('memory_get 工具', () => {
             name: 'memory_save',
             arguments: {
                 content: 'memory_get 测试：完整内容应该在这里可见',
+                type: 'fact',
                 tags: ['get-test'],
                 source: 'opencode',
             },
@@ -323,11 +357,11 @@ describe('memory_get 工具', () => {
     it('应该能同时获取多条笔记', async () => {
         const save1 = await client.callTool({
             name: 'memory_save',
-            arguments: { content: '多条获取测试 A alpha', tags: ['multi-get'], source: 'opencode' },
+            arguments: { content: '多条获取测试 A alpha', type: 'fact', tags: ['multi-get'], source: 'opencode' },
         });
         const save2 = await client.callTool({
             name: 'memory_save',
-            arguments: { content: '多条获取测试 B beta', tags: ['multi-get'], source: 'opencode' },
+            arguments: { content: '多条获取测试 B beta', type: 'fact', tags: ['multi-get'], source: 'opencode' },
         });
 
         const id1 = getResponseText(save1).match(/ID: ([\w-]+)/)?.[1];
@@ -359,7 +393,7 @@ describe('memory_get 工具', () => {
     it('混合存在与不存在的 ID 应部分返回', async () => {
         const saveResult = await client.callTool({
             name: 'memory_save',
-            arguments: { content: '部分获取测试内容 gamma', tags: ['partial-get'], source: 'opencode' },
+            arguments: { content: '部分获取测试内容 gamma', type: 'fact', tags: ['partial-get'], source: 'opencode' },
         });
 
         const id = getResponseText(saveResult).match(/ID: ([\w-]+)/)?.[1];
@@ -464,6 +498,7 @@ describe('memory_delete 工具', () => {
             name: 'memory_save',
             arguments: {
                 content: '待删除的工具测试笔记',
+                type: 'fact',
                 tags: ['delete-test'],
                 source: 'opencode',
             },
@@ -497,11 +532,11 @@ describe('memory_compress_apply 工具', () => {
         // 先保存两条笔记
         const save1 = await client.callTool({
             name: 'memory_save',
-            arguments: { content: '压缩测试笔记 A', tags: ['compress-test'], source: 'opencode' },
+            arguments: { content: '压缩测试笔记 A', type: 'fact', tags: ['compress-test'], source: 'opencode' },
         });
         const save2 = await client.callTool({
             name: 'memory_save',
-            arguments: { content: '压缩测试笔记 B', tags: ['compress-test'], source: 'opencode' },
+            arguments: { content: '压缩测试笔记 B', type: 'fact', tags: ['compress-test'], source: 'opencode' },
         });
 
         const id1 = getResponseText(save1).match(/ID: ([\w-]+)/)?.[1];
@@ -563,7 +598,12 @@ describe('memory_compress_apply 工具', () => {
     it('蒸馏笔记应支持 type 字段', async () => {
         const save1 = await client.callTool({
             name: 'memory_save',
-            arguments: { content: 'compress_apply type 测试原始笔记', tags: ['ca-type'], source: 'opencode' },
+            arguments: {
+                content: 'compress_apply type 测试原始笔记',
+                type: 'fact',
+                tags: ['ca-type'],
+                source: 'opencode',
+            },
         });
         const id1 = getResponseText(save1).match(/ID: ([\w-]+)/)?.[1];
         expect(id1).toBeTruthy();

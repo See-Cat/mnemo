@@ -10,6 +10,8 @@ import {
     removeMultipleFromIndex,
     isEmbeddingReady,
     preloadEmbedding,
+    findSimilar,
+    DEDUP_SIMILARITY_THRESHOLD,
 } from '../src/core/embedding.js';
 import { writeStorageConfig } from '../src/core/config.js';
 import { saveNote, deleteNote } from '../src/core/notes.js';
@@ -170,5 +172,41 @@ describe('hybrid search (vector + keyword)', () => {
         expect(results.some((r) => r.id === note.meta.id)).toBe(true);
 
         await removeFromIndex(note.meta.id);
+    });
+});
+
+describe('findSimilar', () => {
+    it('应该找到语义相似的已索引笔记', async () => {
+        const note = await saveNote('用户偏好 Prettier 格式化代码，singleQuote tabWidth 4', ['pref'], 'opencode');
+        await indexNote(note);
+
+        const similar = await findSimilar('代码格式化使用 Prettier，配置 singleQuote tabWidth 4');
+        expect(similar.length).toBeGreaterThan(0);
+        expect(similar[0].id).toBe(note.meta.id);
+        expect(similar[0].score).toBeGreaterThanOrEqual(DEDUP_SIMILARITY_THRESHOLD);
+
+        await removeFromIndex(note.meta.id);
+    });
+
+    it('完全不相关的内容不应触发相似匹配', async () => {
+        const note = await saveNote('量子计算在蛋白质折叠中的应用前景 quantumProteinUnique', ['sci'], 'opencode');
+        await indexNote(note);
+
+        const similar = await findSimilar('JavaScript 异步编程的最佳实践');
+        const found = similar.find((s) => s.id === note.meta.id);
+        expect(found).toBeUndefined();
+
+        await removeFromIndex(note.meta.id);
+    });
+
+    it('DEDUP_SIMILARITY_THRESHOLD 应该是 0.85', () => {
+        expect(DEDUP_SIMILARITY_THRESHOLD).toBe(0.85);
+    });
+
+    it('空索引时应返回空数组', async () => {
+        // findSimilar 在 embedding ready 但索引可能有内容时仍能工作
+        // 这里测试的是：即使有笔记，自定义高阈值也不应匹配
+        const similar = await findSimilar('完全随机的内容 xkcd42 zzzqqq', 0.99);
+        expect(similar).toEqual([]);
     });
 });
