@@ -9,6 +9,17 @@ export const AGENT_TYPES = ['opencode', 'claude-code', 'openclaw', 'codex'] as c
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
+/**
+ * Map from MCP clientInfo.name to AgentType.
+ * Used for protocol-level agent identification during the initialize handshake.
+ */
+export const CLIENT_NAME_MAP: Record<string, AgentType> = {
+    opencode: 'opencode',
+    'claude-code': 'claude-code',
+    'openclaw-acp-client': 'openclaw',
+    'codex-mcp-client': 'codex',
+};
+
 export type StorageScope = 'global' | 'project';
 
 /**

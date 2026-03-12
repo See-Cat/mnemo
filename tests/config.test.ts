@@ -11,6 +11,7 @@ import {
     writeStorageConfig,
     resolveStorageContext,
     MEMORY_TYPES,
+    CLIENT_NAME_MAP,
 } from '../src/core/config.js';
 
 let originalEnv: NodeJS.ProcessEnv;
@@ -124,5 +125,32 @@ describe('MEMORY_TYPES', () => {
         // 验证它确实是一个数组且内容固定
         expect(Array.isArray(MEMORY_TYPES)).toBe(true);
         expect(MEMORY_TYPES).toHaveLength(8);
+    });
+});
+
+describe('CLIENT_NAME_MAP', () => {
+    it('应该映射所有 4 个已知 MCP 客户端名称', () => {
+        expect(Object.keys(CLIENT_NAME_MAP)).toHaveLength(4);
+    });
+
+    it('opencode 客户端名映射到 opencode', () => {
+        expect(CLIENT_NAME_MAP['opencode']).toBe('opencode');
+    });
+
+    it('claude-code 客户端名映射到 claude-code', () => {
+        expect(CLIENT_NAME_MAP['claude-code']).toBe('claude-code');
+    });
+
+    it('openclaw-acp-client 客户端名映射到 openclaw', () => {
+        expect(CLIENT_NAME_MAP['openclaw-acp-client']).toBe('openclaw');
+    });
+
+    it('codex-mcp-client 客户端名映射到 codex', () => {
+        expect(CLIENT_NAME_MAP['codex-mcp-client']).toBe('codex');
+    });
+
+    it('未知客户端名应返回 undefined', () => {
+        expect(CLIENT_NAME_MAP['unknown-client']).toBeUndefined();
+        expect(CLIENT_NAME_MAP['test-client']).toBeUndefined();
     });
 });

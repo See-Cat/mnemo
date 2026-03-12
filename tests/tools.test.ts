@@ -675,6 +675,129 @@ describe('memory_setup 工具', () => {
     });
 });
 
+describe('memory_setup MCP 协议级 agent 检测', () => {
+    let cwdSpy: ReturnType<typeof vi.spyOn>;
+    let homeSpy: ReturnType<typeof vi.spyOn>;
+    let fakeHome: string;
+    let fakeCwd: string;
+
+    beforeAll(async () => {
+        fakeHome = path.join(tmpDir, 'fake-home-mcp');
+        fakeCwd = path.join(tmpDir, 'fake-cwd-mcp');
+        await fs.mkdir(fakeHome, { recursive: true });
+        await fs.mkdir(fakeCwd, { recursive: true });
+        cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(fakeCwd);
+        homeSpy = vi.spyOn(os, 'homedir').mockReturnValue(fakeHome);
+    });
+
+    afterAll(() => {
+        cwdSpy.mockRestore();
+        homeSpy.mockRestore();
+    });
+
+    it('MCP clientInfo.name 为 opencode 时应自动检测为 opencode', async () => {
+        // 创建独立的 server/client 对，client 标识为 opencode
+        const testServer = new McpServer({ name: 'mnemo-test', version: '0.1.0' });
+        registerSetupTool(testServer);
+
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        await testServer.connect(serverTransport);
+
+        const testClient = new Client({ name: 'opencode', version: '1.0.0' });
+        await testClient.connect(clientTransport);
+
+        try {
+            const result = await testClient.callTool({
+                name: 'memory_setup',
+                arguments: {},
+            });
+
+            const text = getResponseText(result);
+            expect(text).toContain('Agent type: opencode');
+            expect(text).toMatch(/initialized successfully|updated successfully/);
+        } finally {
+            await testClient.close();
+            await testServer.close();
+        }
+    });
+
+    it('MCP clientInfo.name 为 openclaw-acp-client 时应自动检测为 openclaw', async () => {
+        const testServer = new McpServer({ name: 'mnemo-test', version: '0.1.0' });
+        registerSetupTool(testServer);
+
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        await testServer.connect(serverTransport);
+
+        const testClient = new Client({ name: 'openclaw-acp-client', version: '2026.3.7' });
+        await testClient.connect(clientTransport);
+
+        try {
+            const result = await testClient.callTool({
+                name: 'memory_setup',
+                arguments: {},
+            });
+
+            const text = getResponseText(result);
+            expect(text).toContain('Agent type: openclaw');
+        } finally {
+            await testClient.close();
+            await testServer.close();
+        }
+    });
+
+    it('未知 clientInfo.name 且无文件标记时应报错', async () => {
+        const testServer = new McpServer({ name: 'mnemo-test', version: '0.1.0' });
+        registerSetupTool(testServer);
+
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        await testServer.connect(serverTransport);
+
+        const testClient = new Client({ name: 'unknown-agent', version: '1.0.0' });
+        await testClient.connect(clientTransport);
+
+        try {
+            const result = await testClient.callTool({
+                name: 'memory_setup',
+                arguments: {},
+            });
+
+            const text = getResponseText(result);
+            expect(text).toContain('Could not auto-detect agent type');
+            expect((result as any).isError).toBe(true);
+        } finally {
+            await testClient.close();
+            await testServer.close();
+        }
+    });
+
+    it('显式 agent_type 参数应优先于 MCP 检测', async () => {
+        // client 标识为 opencode，但显式指定 claude-code
+        const testServer = new McpServer({ name: 'mnemo-test', version: '0.1.0' });
+        registerSetupTool(testServer);
+
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        await testServer.connect(serverTransport);
+
+        const testClient = new Client({ name: 'opencode', version: '1.0.0' });
+        await testClient.connect(clientTransport);
+
+        try {
+            const result = await testClient.callTool({
+                name: 'memory_setup',
+                arguments: {
+                    agent_type: 'claude-code',
+                },
+            });
+
+            const text = getResponseText(result);
+            expect(text).toContain('Agent type: claude-code');
+        } finally {
+            await testClient.close();
+            await testServer.close();
+        }
+    });
+});
+
 describe('extractSummary', () => {
     it('短文本应原样返回', () => {
         expect(extractSummary('短内容')).toBe('短内容');

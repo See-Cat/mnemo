@@ -5,7 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { AGENT_TYPES, type AgentType, writeStorageConfig } from '../core/config.js';
+import { AGENT_TYPES, CLIENT_NAME_MAP, type AgentType, writeStorageConfig } from '../core/config.js';
 import { getAgentConfig, injectPrompt, hasPromptInjected } from '../prompts/templates.js';
 
 const execFileAsync = promisify(execFile);
@@ -13,9 +13,20 @@ const execFileAsync = promisify(execFile);
 const PROJECT_ROOT_MARKERS = ['.git', 'package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod'];
 
 /**
- * Detect which agent tool is being used by checking config file existence
+ * Detect agent type from MCP protocol clientInfo.
+ * The initialize handshake includes clientInfo.name which authoritatively identifies the client.
  */
-async function detectAgentType(cwd: string): Promise<AgentType | null> {
+function detectAgentTypeFromClient(server: McpServer): AgentType | null {
+    const clientInfo = server.server.getClientVersion();
+    if (!clientInfo?.name) return null;
+    return CLIENT_NAME_MAP[clientInfo.name] ?? null;
+}
+
+/**
+ * Detect which agent tool is being used by checking config file existence.
+ * Used as fallback when MCP protocol-level detection is not available.
+ */
+async function detectAgentTypeFromFiles(cwd: string): Promise<AgentType | null> {
     const home = os.homedir();
 
     // Check for agent-specific config files
@@ -139,22 +150,27 @@ export function registerSetupTool(server: McpServer): void {
             const cwd = process.cwd();
             const home = os.homedir();
 
-            // Determine agent type
+            // Determine agent type: explicit param > MCP protocol > file-based detection
             let agentType: AgentType | undefined = agent_type;
             if (!agentType) {
-                const detected = await detectAgentType(cwd);
-                if (!detected) {
-                    return {
-                        content: [
-                            {
-                                type: 'text' as const,
-                                text: `Could not auto-detect agent type. Please specify agent_type parameter. Valid values: ${AGENT_TYPES.join(', ')}`,
-                            },
-                        ],
-                        isError: true,
-                    };
+                const fromClient = detectAgentTypeFromClient(server);
+                if (fromClient) {
+                    agentType = fromClient;
+                } else {
+                    const fromFiles = await detectAgentTypeFromFiles(cwd);
+                    if (!fromFiles) {
+                        return {
+                            content: [
+                                {
+                                    type: 'text' as const,
+                                    text: `Could not auto-detect agent type. Please specify agent_type parameter. Valid values: ${AGENT_TYPES.join(', ')}`,
+                                },
+                            ],
+                            isError: true,
+                        };
+                    }
+                    agentType = fromFiles;
                 }
-                agentType = detected;
             }
 
             const config = getAgentConfig(agentType);
