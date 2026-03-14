@@ -10,9 +10,9 @@ import {
     getProjectConfigPath,
     writeStorageConfig,
     resolveStorageContext,
+    readEvictionConfig,
     MEMORY_TYPES,
     CLIENT_NAME_MAP,
-    DEFAULT_EVICTION_CONFIG,
     type EvictionConfig,
 } from '../src/core/config.js';
 
@@ -78,6 +78,17 @@ describe('storage config', () => {
 
         const content = await fs.readFile(configPath, 'utf-8');
         expect(content).toContain('"scope": "project"');
+    });
+
+    it('初始化应写入 eviction 默认配置', async () => {
+        const configPath = await writeStorageConfig('global');
+        const content = JSON.parse(await fs.readFile(configPath, 'utf-8'));
+        expect(content.eviction).toEqual({
+            enabled: true,
+            maxNotes: 100,
+            evictBatch: 10,
+            archive: true,
+        });
     });
 });
 
@@ -158,11 +169,13 @@ describe('CLIENT_NAME_MAP', () => {
 });
 
 describe('EvictionConfig', () => {
-    it('DEFAULT_EVICTION_CONFIG 应有合理的默认值', () => {
-        expect(DEFAULT_EVICTION_CONFIG.enabled).toBe(true);
-        expect(DEFAULT_EVICTION_CONFIG.maxNotes).toBe(100);
-        expect(DEFAULT_EVICTION_CONFIG.evictBatch).toBe(10);
-        expect(DEFAULT_EVICTION_CONFIG.archive).toBe(true);
+    it('writeStorageConfig 写入的 eviction 默认值应合理', async () => {
+        const configPath = await writeStorageConfig('global');
+        const content = JSON.parse(await fs.readFile(configPath, 'utf-8'));
+        expect(content.eviction.enabled).toBe(true);
+        expect(content.eviction.maxNotes).toBe(100);
+        expect(content.eviction.evictBatch).toBe(10);
+        expect(content.eviction.archive).toBe(true);
     });
 
     it('EvictionConfig 类型应包含所有必要字段', () => {
@@ -176,5 +189,26 @@ describe('EvictionConfig', () => {
         expect(config.maxNotes).toBe(50);
         expect(config.evictBatch).toBe(5);
         expect(config.archive).toBe(false);
+    });
+});
+
+describe('readEvictionConfig', () => {
+    it('初始化后应能读取 eviction 配置', async () => {
+        await writeStorageConfig('global');
+        const config = await readEvictionConfig();
+        expect(config.enabled).toBe(true);
+        expect(config.maxNotes).toBe(100);
+    });
+
+    it('用户修改 config.json 后应读到修改后的值', async () => {
+        const configPath = await writeStorageConfig('global');
+        const raw = JSON.parse(await fs.readFile(configPath, 'utf-8'));
+        raw.eviction.maxNotes = 200;
+        raw.eviction.enabled = false;
+        await fs.writeFile(configPath, JSON.stringify(raw, null, 4) + '\n', 'utf-8');
+
+        const config = await readEvictionConfig();
+        expect(config.maxNotes).toBe(200);
+        expect(config.enabled).toBe(false);
     });
 });

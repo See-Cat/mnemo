@@ -1,7 +1,7 @@
 import { readAllNotes, archiveNote, deleteNote } from './notes.js';
 import { removeFromIndex, recencyScore } from './embedding.js';
 import { flushAccessQueue } from './access-tracker.js';
-import { DEFAULT_EVICTION_CONFIG, type EvictionConfig } from './config.js';
+import { readEvictionConfig, type EvictionConfig } from './config.js';
 
 /**
  * Eviction score weights.
@@ -28,6 +28,11 @@ export function evictionScore(created: string, accessCount: number, maxAccessCou
 /**
  * Run passive eviction if note count exceeds the configured maximum.
  *
+ * Reads eviction config from config.json. If the config has no eviction
+ * section (e.g. old installs before this feature), eviction is skipped.
+ *
+ * An explicit config parameter can be passed for testing.
+ *
  * Flow:
  * 1. Flush the access queue to ensure accessCount is up-to-date
  * 2. Read all notes and check if count exceeds maxNotes
@@ -36,7 +41,12 @@ export function evictionScore(created: string, accessCount: number, maxAccessCou
  *
  * Returns the number of notes evicted, or 0 if eviction was not needed.
  */
-export async function runEviction(config: EvictionConfig = DEFAULT_EVICTION_CONFIG): Promise<number> {
+export async function runEviction(config?: EvictionConfig): Promise<number> {
+    // Read from config.json if no explicit config passed
+    if (!config) {
+        config = await readEvictionConfig();
+    }
+
     if (!config.enabled) return 0;
 
     // Step 1: Flush access queue to get accurate counts

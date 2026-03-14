@@ -51,6 +51,7 @@ interface StorageConfigFile {
     version: number;
     scope: StorageScope;
     createdAt: string;
+    eviction: EvictionConfig;
 }
 
 /**
@@ -127,6 +128,7 @@ async function pathExists(targetPath: string): Promise<boolean> {
 
 /**
  * Write the storage initialization marker.
+ * Includes eviction defaults so users can edit config.json directly.
  */
 export async function writeStorageConfig(scope: StorageScope, projectRoot?: string): Promise<string> {
     const configPath = scope === 'project' ? getProjectConfigPath(projectRoot || process.cwd()) : getGlobalConfigPath();
@@ -135,12 +137,29 @@ export async function writeStorageConfig(scope: StorageScope, projectRoot?: stri
         version: 1,
         scope,
         createdAt: new Date().toISOString(),
+        eviction: {
+            enabled: true,
+            maxNotes: 100,
+            evictBatch: 10,
+            archive: true,
+        },
     };
 
     await ensureDir(path.dirname(configPath));
     await fs.writeFile(configPath, JSON.stringify(config, null, 4) + '\n', 'utf-8');
 
     return configPath;
+}
+
+/**
+ * Read eviction config from the active config.json.
+ * Requires setup to have been run (config.json must contain eviction section).
+ */
+export async function readEvictionConfig(): Promise<EvictionConfig> {
+    const { configPath } = await resolveStorageContext();
+    const raw = await fs.readFile(configPath, 'utf-8');
+    const parsed = JSON.parse(raw) as StorageConfigFile;
+    return parsed.eviction;
 }
 
 /**
@@ -225,34 +244,19 @@ export interface Note {
 }
 
 /**
- * Compress trigger thresholds
- */
-export const COMPRESS_THRESHOLDS = {
-    /** Max number of notes before auto-compress suggestion */
-    maxNotes: 50,
-    /** Max total content size (chars) before auto-compress suggestion */
-    maxTotalSize: 100_000,
-} as const;
-
-/**
  * Eviction configuration for passive memory lifecycle management.
  * When note count exceeds maxNotes, the lowest-scored notes are
  * archived (or deleted) to keep the active set focused.
+ *
+ * Stored in config.json under the "eviction" key. Users can edit directly.
  */
 export interface EvictionConfig {
-    /** Whether passive eviction is enabled. Default: true */
+    /** Whether passive eviction is enabled. */
     enabled: boolean;
-    /** Maximum number of active notes before eviction triggers. Default: 100 */
+    /** Maximum number of active notes before eviction triggers. */
     maxNotes: number;
-    /** Extra notes to evict beyond the overflow (reduces trigger frequency). Default: 10 */
+    /** Extra notes to evict beyond the overflow (reduces trigger frequency). */
     evictBatch: number;
-    /** Move evicted notes to archive/ instead of deleting. Default: true */
+    /** Move evicted notes to archive/ instead of deleting. */
     archive: boolean;
 }
-
-export const DEFAULT_EVICTION_CONFIG: EvictionConfig = {
-    enabled: true,
-    maxNotes: 100,
-    evictBatch: 10,
-    archive: true,
-};
