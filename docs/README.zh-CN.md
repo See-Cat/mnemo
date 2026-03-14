@@ -106,7 +106,7 @@ mcporter config add mnemo --command mnemo --scope home
 安装后，运行 CLI 命令初始化 Mnemo：
 
 ```bash
-npx @s_s/mnemo setup
+npx @s_s/mnemo setup --agent claude-code
 ```
 
 这会执行两个步骤：
@@ -114,22 +114,22 @@ npx @s_s/mnemo setup
 1. **提示注入** — 将记忆管理指令写入 Agent 配置文件（如 OpenCode 的 `AGENTS.md`、Claude Code 的 `CLAUDE.md`）
 2. **Hook 安装** — 安装生命周期 hook，在关键时刻提醒 Agent 使用记忆工具（Claude Code/Codex 每轮提醒，OpenClaw 会话启动时提醒，OpenCode 会话生命周期事件提醒）
 
-两个步骤相互独立——其中一个失败不影响另一个。Agent 类型通过当前目录和 home 目录下的配置文件自动检测。
+两个步骤相互独立——其中一个失败不影响另一个。
 
 默认初始化为**全局记忆**，在多个项目之间共享。如果你需要项目隔离的记忆，在项目目录下执行：
 
 ```bash
 cd your-project
-npx @s_s/mnemo setup --scope project
+npx @s_s/mnemo setup --agent claude-code --scope project
 ```
 
 选项：
 
-| 参数              | 说明                                      |
-| ----------------- | ----------------------------------------- |
-| `--agent <type>`  | Agent 类型（省略则自动检测）              |
-| `--scope <scope>` | `global`（默认）或 `project`              |
-| `--project-root`  | 显式指定项目根目录（用于 project 作用域） |
+| 参数              | 说明                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--agent <type>`  | `opencode`、`claude-code`、`openclaw` 或 `codex`。建议显式指定。省略时通过 cwd 和 `~` 下的配置文件自动检测。 |
+| `--scope <scope>` | `global`（默认）或 `project`                                                                                 |
+| `--project-root`  | 显式指定项目根目录（用于 project 作用域）                                                                    |
 
 ### 存储作用域
 

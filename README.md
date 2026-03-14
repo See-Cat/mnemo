@@ -108,7 +108,7 @@ mcporter config add mnemo --command mnemo --scope home
 After installing, run the setup CLI to initialize Mnemo:
 
 ```bash
-npx @s_s/mnemo setup
+npx @s_s/mnemo setup --agent claude-code
 ```
 
 This does two things:
@@ -116,22 +116,22 @@ This does two things:
 1. **Prompt injection** — writes memory management instructions into your agent's config file (e.g., `AGENTS.md` for OpenCode, `CLAUDE.md` for Claude Code)
 2. **Hook installation** — installs lifecycle hooks that remind the agent to use memory tools at key moments (per-turn for Claude Code/Codex, session-start for OpenClaw, session lifecycle events for OpenCode)
 
-Both steps are independent — if one fails, the other still succeeds. Agent type is auto-detected from config files in the current directory and home directory.
+Both steps are independent — if one fails, the other still succeeds.
 
 By default, setup initializes **global** memory shared across projects. For project-isolated memory, run in the project directory:
 
 ```bash
 cd your-project
-npx @s_s/mnemo setup --scope project
+npx @s_s/mnemo setup --agent claude-code --scope project
 ```
 
 Options:
 
-| Flag              | Description                               |
-| ----------------- | ----------------------------------------- |
-| `--agent <type>`  | Agent type (auto-detected if omitted)     |
-| `--scope <scope>` | `global` (default) or `project`           |
-| `--project-root`  | Explicit project root (for project scope) |
+| Flag              | Description                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--agent <type>`  | `opencode`, `claude-code`, `openclaw`, or `codex`. Recommended to specify explicitly. If omitted, auto-detected from config files in cwd and `~`. |
+| `--scope <scope>` | `global` (default) or `project`                                                                                                                   |
+| `--project-root`  | Explicit project root (for project scope)                                                                                                         |
 
 ### Storage scopes
 
