@@ -18,10 +18,9 @@ import type { AgentType } from '../src/core/config.js';
 // ---------------------------------------------------------------------------
 
 describe('reminders.ts — REMINDERS object', () => {
-    it('应该包含所有四种 reminder 文本', () => {
+    it('应该包含三种 reminder 文本（compaction 已移除）', () => {
         expect(REMINDERS.perTurn).toBeDefined();
         expect(REMINDERS.sessionStart).toBeDefined();
-        expect(REMINDERS.compaction).toBeDefined();
         expect(REMINDERS.sessionEnd).toBeDefined();
     });
 
@@ -34,10 +33,8 @@ describe('reminders.ts — REMINDERS object', () => {
         expect(REMINDERS.sessionStart).toContain('memory_search');
     });
 
-    it('compaction 应该提醒保存重要上下文', () => {
-        expect(REMINDERS.compaction).toContain('memory_save');
-        // compress 已移除，compaction 不再提及 memory_compress
-        expect(REMINDERS.compaction).not.toContain('memory_compress');
+    it('不应该包含 compaction reminder（各 agent 的 compaction hook 均无法有效注入）', () => {
+        expect((REMINDERS as any).compaction).toBeUndefined();
     });
 
     it('sessionEnd 应该包含自检提示', () => {
@@ -98,8 +95,13 @@ describe('reminders.ts — OpenCode plugin template', () => {
         expect(OPENCODE_PLUGIN_TS).toContain('experimental.chat.messages.transform');
     });
 
-    it('应该处理 experimental.session.compacting 事件', () => {
-        expect(OPENCODE_PLUGIN_TS).toContain('experimental.session.compacting');
+    it('不应该处理 experimental.session.compacting 事件（干扰 compaction 摘要质量）', () => {
+        expect(OPENCODE_PLUGIN_TS).not.toContain('experimental.session.compacting');
+    });
+
+    it('应该在 compaction 后跳过所有注入', () => {
+        expect(OPENCODE_PLUGIN_TS).toContain('isPostCompaction');
+        expect(OPENCODE_PLUGIN_TS).toContain('type === "compaction"');
     });
 
     it('应该包含会话跟踪逻辑（seenSessions）', () => {

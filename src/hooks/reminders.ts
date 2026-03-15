@@ -20,12 +20,6 @@ Search memory for relevant context before starting work.
 Call memory_search with a query based on the user's message.
 </mnemo-session-start>`,
 
-    /** Context compaction reminder */
-    compaction: `<mnemo-compaction>
-Context is being compacted. Before losing context:
-1. Save any important unresolved threads as continuity memories (memory_save)
-</mnemo-compaction>`,
-
     /** Session end / idle self-check */
     sessionEnd: `<mnemo-session-end>
 Session ending. Quick self-check:
@@ -124,8 +118,6 @@ ${REMINDERS.perTurn}\`;
 
 const PER_TURN_REMINDER = \`${REMINDERS.perTurn}\`;
 
-const COMPACTION_REMINDER = \`${REMINDERS.compaction}\`;
-
 // Track which sessions have already received the start reminder
 const seenSessions = new Set();
 
@@ -134,6 +126,13 @@ export const MnemoReminder = async () => {
         "experimental.chat.messages.transform": async (_input, output) => {
             const messages = output.messages;
             if (!messages || messages.length === 0) return;
+
+            // Skip all injection after compaction — let the LLM work cleanly
+            // from the compaction summary without any mnemo interference.
+            const isPostCompaction = messages.some(m =>
+                m.info?.role === "user" && m.parts?.some(p => p.type === "compaction")
+            );
+            if (isPostCompaction) return;
 
             // Determine session ID from the first message
             const sessionID = messages[0]?.info?.sessionID;
@@ -150,9 +149,6 @@ export const MnemoReminder = async () => {
                     break;
                 }
             }
-        },
-        "experimental.session.compacting": async (_input, output) => {
-            output.context.push(COMPACTION_REMINDER);
         },
     };
 };
