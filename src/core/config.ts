@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 /**
  * Agent types and client name mapping — re-exported from @s_s/agent-kit.
  */
-export { AGENT_TYPES, CLIENT_NAME_MAP, type AgentType } from '@s_s/agent-kit';
+export { AGENT_TYPES, type AgentType } from '@s_s/agent-kit';
 
 export type StorageScope = 'global' | 'project';
 
